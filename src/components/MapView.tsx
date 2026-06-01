@@ -123,10 +123,9 @@ export function MapView({
           layout: {
             'symbol-placement': 'line-center',
             'text-field': ['get', 'eta'],
-            'text-size': 12,
-            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-            'text-padding': 6,
-            'text-allow-overlap': false,
+            'text-size': 13,
+            'text-allow-overlap': true,
+            'text-ignore-placement': true,
             'text-keep-upright': true,
           },
           paint: {
@@ -334,12 +333,19 @@ export function MapView({
     }
     if (allCoords.length === 0) return;
     const [minLon, minLat, maxLon, maxLat] = bboxOf(allCoords);
+    // On viewports below the lg breakpoint, the bottom sheet covers ~42vh of
+    // the map, so pad the bottom of the fit so the route doesn't land under it.
+    const isMobile = window.innerWidth < 1024;
+    const bottomPad = isMobile ? Math.round(window.innerHeight * 0.42) + 24 : 60;
     map.fitBounds(
       [
         [minLon, minLat],
         [maxLon, maxLat],
       ],
-      { padding: 60, duration: 800 },
+      {
+        padding: { top: 60, right: 60, bottom: bottomPad, left: 60 },
+        duration: 800,
+      },
     );
   }, [routes.length]);
 

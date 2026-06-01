@@ -87,6 +87,7 @@ export function App() {
   const [astarOn, setAstarOn] = useState(false);
   const [astarStep, setAstarStep] = useState<AStarStep | null>(null);
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
+  const [mobileSheetExpanded, setMobileSheetExpanded] = useState(false);
 
   useEffect(() => {
     if (!weightsTouched) {
@@ -309,12 +310,12 @@ export function App() {
 
       {/* Main */}
       <div
-        className={`grid flex-1 min-h-0 grid-cols-1 transition-[grid-template-columns] duration-200 ${
+        className={`relative flex-1 min-h-0 lg:grid lg:grid-cols-1 lg:transition-[grid-template-columns] lg:duration-200 ${
           sidePanelOpen ? 'lg:grid-cols-[1fr_440px]' : 'lg:grid-cols-[1fr_0px]'
         }`}
       >
         {/* Map */}
-        <div className="relative min-h-0 h-[60vh] lg:h-auto">
+        <div className="relative h-full min-h-0 lg:h-auto">
           <MapView
             routes={ranked}
             selectedId={selectedRoute?.id ?? null}
@@ -344,7 +345,7 @@ export function App() {
             </div>
           )}
           {astarOn && astarStep && (
-            <div className="pointer-events-none absolute bottom-3 left-3 rounded-md border border-border bg-card/85 px-3 py-2 text-xs text-muted-foreground shadow-md backdrop-blur">
+            <div className="pointer-events-none absolute bottom-[calc(42vh+0.75rem)] left-3 rounded-md border border-border bg-card/85 px-3 py-2 text-xs text-muted-foreground shadow-md backdrop-blur lg:bottom-3">
               <Activity className="mr-1.5 inline h-3.5 w-3.5 text-amber-400" />
               A* search · visited {astarStep.visited.length} · frontier{' '}
               {astarStep.frontier.length}
@@ -353,12 +354,24 @@ export function App() {
           )}
         </div>
 
-        {/* Side panel */}
-        <ScrollArea
-          className={`border-t lg:border-l lg:border-t-0 border-border bg-background overflow-hidden ${
-            sidePanelOpen ? '' : 'lg:hidden'
-          }`}
+        {/* Side panel — bottom sheet on mobile, right rail on lg+ */}
+        <div
+          className={`absolute inset-x-0 bottom-0 z-20 flex flex-col rounded-t-xl border border-border bg-background shadow-xl transition-[height] duration-300 ease-out lg:static lg:inset-auto lg:rounded-none lg:border-0 lg:border-l lg:border-t-0 lg:shadow-none lg:transition-none ${
+            mobileSheetExpanded ? 'h-[85vh]' : 'h-[42vh]'
+          } ${sidePanelOpen ? '' : 'lg:hidden'}`}
         >
+          {/* Handle — mobile only */}
+          <button
+            type="button"
+            aria-label={mobileSheetExpanded ? 'Collapse panel' : 'Expand panel'}
+            className="flex w-full items-center justify-center py-2 lg:hidden"
+            onClick={() => setMobileSheetExpanded((v) => !v)}
+          >
+            <span className="h-1.5 w-12 rounded-full bg-muted-foreground/40" />
+          </button>
+          <ScrollArea
+            className="min-h-0 flex-1 bg-background overflow-hidden"
+          >
           <div className="flex flex-col">
             {/* Profile summary */}
             <PanelSection
@@ -480,6 +493,7 @@ export function App() {
             </PanelSection>
           </div>
         </ScrollArea>
+        </div>
       </div>
 
       <ProfileGate

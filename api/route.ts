@@ -48,21 +48,93 @@ function haversineKm(
   return 2 * EARTH_R_KM * Math.asin(Math.sqrt(h));
 }
 
-function buildLegEndpoints(
+async function snapWaypoints(
+  token: string,
+  waypoints: { lat: number; lon: number }[],
+  radius: number,
+): Promise<({ lat: number; lon: number } | null)[]> {
+  if (waypoints.length === 0) return [];
+  try {
+    const r = await fetch(
+      'https://api.openrouteservice.org/v2/snap/driving-car/json',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          locations: waypoints.map((w) => [w.lon, w.lat]),
+          radius,
+        }),
+      },
+    );
+    if (!r.ok) return waypoints.map(() => null);
+    const data = (await r.json()) as {
+      locations: ({ location: [number, number] } | null)[];
+    };
+    return data.locations.map((loc) =>
+      loc ? { lon: loc.location[0], lat: loc.location[1] } : null,
+    );
+  } catch {
+    return waypoints.map(() => null);
+  }
+}
+
+/**
+ * Build leg endpoints by interpolating along the great-circle, then snapping
+ * each interpolated point to the nearest road. Origin and destination are
+ * always preserved (they came from the user / geocoder and are assumed valid).
+ *
+ * If a waypoint can't be snapped within 5 km, we perturb it along the
+ * great-circle by ±40% of one segment and retry. If that still fails the
+ * waypoint is dropped — ORS will then route a longer leg between the
+ * remaining anchors, which usually still falls inside the 100 km cap on
+ * sparse-road / mountain trips.
+ */
+async function buildLegEndpoints(
+  token: string,
   origin: { lat: number; lon: number },
   destination: { lat: number; lon: number },
-): { lat: number; lon: number }[] {
+): Promise<{ lat: number; lon: number }[]> {
   const total = haversineKm(origin, destination);
-  const segments = Math.max(1, Math.ceil(total / LEG_CAP_KM));
-  const points: { lat: number; lon: number }[] = [];
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
-    points.push({
-      lon: origin.lon + (destination.lon - origin.lon) * t,
-      lat: origin.lat + (destination.lat - origin.lat) * t,
-    });
+  if (total <= LEG_CAP_KM) return [origin, destination];
+
+  const segments = Math.ceil(total / LEG_CAP_KM);
+  const interp = (t: number) => ({
+    lon: origin.lon + (destination.lon - origin.lon) * t,
+    lat: origin.lat + (destination.lat - origin.lat) * t,
+  });
+
+  const candidates: { lat: number; lon: number }[] = [];
+  for (let i = 1; i < segments; i++) candidates.push(interp(i / segments));
+
+  const snapped = await snapWaypoints(token, candidates, 5000);
+
+  // Retry failed snaps with a perturbation along the great-circle.
+  const failedIdx = snapped
+    .map((s, i) => (s ? -1 : i))
+    .filter((i) => i >= 0);
+  if (failedIdx.length > 0) {
+    const perturbations: { lat: number; lon: number }[] = [];
+    const ownerIdx: number[] = [];
+    for (const i of failedIdx) {
+      const t = (i + 1) / segments;
+      const dt = 0.4 / segments;
+      perturbations.push(interp(t + dt), interp(t - dt));
+      ownerIdx.push(i, i);
+    }
+    const retry = await snapWaypoints(token, perturbations, 5000);
+    for (let p = 0; p < retry.length; p++) {
+      const owner = ownerIdx[p];
+      if (retry[p] && !snapped[owner]) snapped[owner] = retry[p];
+    }
   }
-  return points;
+
+  const result: { lat: number; lon: number }[] = [origin];
+  for (const s of snapped) if (s) result.push(s);
+  result.push(destination);
+  return result;
 }
 
 interface VariantOptions {
@@ -264,7 +336,7 @@ export default async function handler(
     return;
   }
 
-  const legEndpoints = buildLegEndpoints(body.origin, body.destination);
+  const legEndpoints = await buildLegEndpoints(token, body.origin, body.destination);
 
   try {
     const results = await Promise.all(

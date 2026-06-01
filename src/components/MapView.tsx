@@ -346,5 +346,5 @@ export function MapView({
     }
   }, [frontier, visited]);
 
-  return <div className="absolute inset-0" ref={containerRef} />;
+  return <div className="h-full w-full" ref={containerRef} />;
 }

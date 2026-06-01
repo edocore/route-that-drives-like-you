@@ -6,6 +6,8 @@ import {
   Eye,
   Info,
   Link2,
+  PanelRightClose,
+  PanelRightOpen,
   Sliders,
   UserCircle,
 } from 'lucide-react';
@@ -84,6 +86,7 @@ export function App() {
 
   const [astarOn, setAstarOn] = useState(false);
   const [astarStep, setAstarStep] = useState<AStarStep | null>(null);
+  const [sidePanelOpen, setSidePanelOpen] = useState(true);
 
   useEffect(() => {
     if (!weightsTouched) {
@@ -305,7 +308,11 @@ export function App() {
       </header>
 
       {/* Main */}
-      <div className="grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[1fr_440px]">
+      <div
+        className={`grid flex-1 min-h-0 grid-cols-1 transition-[grid-template-columns] duration-200 ${
+          sidePanelOpen ? 'lg:grid-cols-[1fr_440px]' : 'lg:grid-cols-[1fr_0px]'
+        }`}
+      >
         {/* Map */}
         <div className="relative min-h-0 h-[60vh] lg:h-auto">
           <MapView
@@ -317,6 +324,19 @@ export function App() {
             visited={astarStep?.visited}
             onSelect={setSelectedId}
           />
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label={sidePanelOpen ? 'Hide side panel' : 'Show side panel'}
+            className="absolute right-3 top-3 z-10 h-8 w-8 rounded-full border-border bg-card/90 backdrop-blur"
+            onClick={() => setSidePanelOpen((v) => !v)}
+          >
+            {sidePanelOpen ? (
+              <PanelRightClose className="h-4 w-4" />
+            ) : (
+              <PanelRightOpen className="h-4 w-4" />
+            )}
+          </Button>
           {ranked.length === 0 && !loading && (
             <div className="pointer-events-none absolute left-3 top-3 max-w-sm rounded-md border border-border bg-card/85 px-3 py-2 text-xs text-muted-foreground shadow-md backdrop-blur">
               <Info className="mr-1.5 inline h-3.5 w-3.5" />
@@ -334,7 +354,11 @@ export function App() {
         </div>
 
         {/* Side panel */}
-        <ScrollArea className="border-t lg:border-l lg:border-t-0 border-border bg-background">
+        <ScrollArea
+          className={`border-t lg:border-l lg:border-t-0 border-border bg-background overflow-hidden ${
+            sidePanelOpen ? '' : 'lg:hidden'
+          }`}
+        >
           <div className="flex flex-col">
             {/* Profile summary */}
             <PanelSection

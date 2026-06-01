@@ -115,25 +115,6 @@ export function MapView({
           },
           layout: { 'line-cap': 'round', 'line-join': 'round' },
         });
-        // ETA label rendered at the line's midpoint, rotating with the road.
-        map.addLayer({
-          id: `${id}-eta`,
-          type: 'symbol',
-          source: id,
-          layout: {
-            'symbol-placement': 'line-center',
-            'text-field': ['get', 'eta'],
-            'text-size': 13,
-            'text-allow-overlap': true,
-            'text-ignore-placement': true,
-            'text-keep-upright': true,
-          },
-          paint: {
-            'text-color': RANK_COLORS[i] ?? '#22d3ee',
-            'text-halo-color': '#0b1020',
-            'text-halo-width': 2.5,
-          },
-        });
         map.on('click', `${id}-stroke`, () => {
           // Will be re-bound by the route-update effect when mapping ID -> route
         });
@@ -243,7 +224,6 @@ export function MapView({
       const isSelected = route.id === selectedId;
       const color = RANK_COLORS[route.rank - 1] ?? '#22d3ee';
       map.setPaintProperty(`route-${i}-stroke`, 'line-color', color);
-      map.setPaintProperty(`route-${i}-eta`, 'text-color', color);
       map.setPaintProperty(
         `route-${i}-stroke`,
         'line-width',
@@ -265,15 +245,53 @@ export function MapView({
           {
             type: 'Feature',
             geometry: route.geometry,
-            properties: {
-              id: route.id,
-              eta: formatDuration(route.stats.durationMin),
-            },
+            properties: { id: route.id },
           },
         ],
       });
     }
   }, [routes, selectedId]);
+
+  // ETA HTML markers — placed at each route's geometric midpoint and
+  // styled with the route's rank color. Using DOM markers (vs a symbol
+  // layer) avoids basemap glyph dependencies that previously rendered
+  // labels invisibly.
+  const etaMarkersRef = useRef<maplibregl.Marker[]>([]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isLoadedRef.current) return;
+    for (const m of etaMarkersRef.current) m.remove();
+    etaMarkersRef.current = [];
+    for (const route of routes) {
+      const coords = route.geometry.coordinates;
+      if (coords.length < 2) continue;
+      const mid = coords[Math.floor(coords.length / 2)];
+      const color = RANK_COLORS[route.rank - 1] ?? '#22d3ee';
+      const el = document.createElement('div');
+      el.textContent = formatDuration(route.stats.durationMin);
+      el.style.cssText = `
+        font-family: 'Fira Sans', system-ui, sans-serif;
+        font-weight: 600;
+        font-size: 12px;
+        color: ${color};
+        background: rgba(11, 16, 32, 0.92);
+        border: 1px solid ${color};
+        padding: 3px 8px;
+        border-radius: 12px;
+        white-space: nowrap;
+        pointer-events: none;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      `;
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([mid[0], mid[1]])
+        .addTo(map);
+      etaMarkersRef.current.push(marker);
+    }
+    return () => {
+      for (const m of etaMarkersRef.current) m.remove();
+      etaMarkersRef.current = [];
+    };
+  }, [routes]);
 
   // Bind click handlers to actual route IDs
   useEffect(() => {

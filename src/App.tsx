@@ -87,6 +87,35 @@ export function App() {
   const [astarStep, setAstarStep] = useState<AStarStep | null>(null);
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
   const [mobileSheetExpanded, setMobileSheetExpanded] = useState(false);
+  // While the user is dragging the mobile sheet, we set an explicit height
+  // in pixels. On pointer up, we snap to peek/expanded and clear this.
+  const [mobileSheetHeight, setMobileSheetHeight] = useState<number | null>(null);
+
+  const dragStartHandler = useCallback((startY: number) => {
+    const peek = window.innerHeight * 0.42;
+    const expanded = window.innerHeight * 0.85;
+    const startHeight = mobileSheetExpanded ? expanded : peek;
+    let lastHeight = startHeight;
+
+    const onMove = (e: PointerEvent) => {
+      const delta = startY - e.clientY;
+      const next = Math.max(120, Math.min(window.innerHeight * 0.92, startHeight + delta));
+      lastHeight = next;
+      setMobileSheetHeight(next);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      // Snap to whichever target is closer.
+      const midpoint = (peek + expanded) / 2;
+      setMobileSheetExpanded(lastHeight > midpoint);
+      setMobileSheetHeight(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  }, [mobileSheetExpanded]);
 
   useEffect(() => {
     if (!weightsTouched) {
@@ -355,19 +384,32 @@ export function App() {
 
         {/* Side panel — bottom sheet on mobile, right rail on lg+ */}
         <div
-          className={`absolute inset-x-0 bottom-0 z-20 flex flex-col rounded-t-xl border border-border bg-background shadow-xl transition-[height] duration-300 ease-out lg:static lg:inset-auto lg:h-auto lg:rounded-none lg:border-0 lg:border-l lg:border-t-0 lg:shadow-none lg:transition-none ${
-            mobileSheetExpanded ? 'h-[85vh]' : 'h-[42vh]'
+          className={`absolute inset-x-0 bottom-0 z-20 flex flex-col rounded-t-xl border border-border bg-background shadow-xl transition-[height] duration-300 ease-out lg:static lg:inset-auto lg:h-full lg:min-h-0 lg:rounded-none lg:border-0 lg:border-l lg:border-t-0 lg:shadow-none lg:transition-none ${
+            mobileSheetHeight !== null ? '' : mobileSheetExpanded ? 'h-[85vh]' : 'h-[42vh]'
           } ${sidePanelOpen ? '' : 'lg:hidden'}`}
+          style={
+            mobileSheetHeight !== null
+              ? { height: `${mobileSheetHeight}px` }
+              : undefined
+          }
         >
-          {/* Handle — mobile only */}
-          <button
-            type="button"
+          {/* Handle — mobile only. Tap toggles peek/expanded, drag resizes. */}
+          <div
+            role="button"
+            tabIndex={0}
             aria-label={mobileSheetExpanded ? 'Collapse panel' : 'Expand panel'}
-            className="flex w-full items-center justify-center py-2 lg:hidden"
-            onClick={() => setMobileSheetExpanded((v) => !v)}
+            className="flex w-full cursor-grab touch-none items-center justify-center py-2.5 active:cursor-grabbing lg:hidden"
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              dragStartHandler(e.clientY);
+            }}
+            onClick={(e) => {
+              if (mobileSheetHeight !== null) e.preventDefault();
+              else setMobileSheetExpanded((v) => !v);
+            }}
           >
             <span className="h-1.5 w-12 rounded-full bg-muted-foreground/40" />
-          </button>
+          </div>
           <div
             className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background"
           >

@@ -113,8 +113,6 @@ If this were a real product, the roadmap is mostly about closing those gaps:
 - **EV-specific routing.** Charging-stop insertion, battery-aware elevation cost.
 - **Multi-driver vehicle profiles.** A household sharing a car has multiple drivers; the profile should be a quick toggle, not a re-questionnaire.
 
-The handoff doc in this repo (`HANDOFF.md`) goes deeper on the system shape if you're curious.
-
 ---
 
 ## Stack
@@ -152,15 +150,3 @@ NOMINATIM_USER_AGENT=routefit-local (your-email@example.com)
 ```
 
 All read server-side only. Tokens never reach the browser.
-
-## Project status
-
-v1 prototype. Built solo, weekends. Open to issues, comments, and "you should try X" pull requests — especially around the culture presets and the toll/fuel tables, which are the most opinionated and easiest to improve.
-
-## Why I built this
-
-I'm a Product Manager. Most of my work output is internal — docs, decisions, prototypes that ship behind a login. This is one of the few things I get to point at publicly that shows how I think about a customer problem end-to-end: framing, mechanism, tradeoffs, what's worth faking, what isn't, and what the next version would look like with real data.
-
-If that's the thing you're trying to evaluate, the README above is the artifact. The code's the proof it isn't just a deck.
-
-— Edoardo

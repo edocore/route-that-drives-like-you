@@ -144,11 +144,11 @@ interface EnrichInput {
   feature: RawORSFeature;
   profile: Profile;
   departureISO: string;
-  /** Index for label like "Route A". */
+  /** Index into VARIANT_LABELS for the route's variant intent. */
   index: number;
 }
 
-const LABELS = ['A', 'B', 'C', 'D'];
+const VARIANT_LABELS = ['Recommended', 'No tolls', 'Shortest', 'Alternative'];
 
 export function enrichRoute({
   feature,
@@ -203,7 +203,7 @@ export function enrichRoute({
 
   return {
     id: `route-${index}`,
-    label: `Route ${LABELS[index] ?? index + 1}`,
+    label: VARIANT_LABELS[index] ?? `Route ${index + 1}`,
     geometry: feature.geometry,
     stats,
     score: 0,

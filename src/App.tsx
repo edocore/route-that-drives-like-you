@@ -35,7 +35,6 @@ import { RouteCard } from '@/components/RouteCard';
 import { WeightSliders } from '@/components/WeightSliders';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Spinner } from '@/components/ui/spinner';
@@ -356,7 +355,7 @@ export function App() {
 
         {/* Side panel — bottom sheet on mobile, right rail on lg+ */}
         <div
-          className={`absolute inset-x-0 bottom-0 z-20 flex flex-col rounded-t-xl border border-border bg-background shadow-xl transition-[height] duration-300 ease-out lg:static lg:inset-auto lg:rounded-none lg:border-0 lg:border-l lg:border-t-0 lg:shadow-none lg:transition-none ${
+          className={`absolute inset-x-0 bottom-0 z-20 flex flex-col rounded-t-xl border border-border bg-background shadow-xl transition-[height] duration-300 ease-out lg:static lg:inset-auto lg:h-auto lg:rounded-none lg:border-0 lg:border-l lg:border-t-0 lg:shadow-none lg:transition-none ${
             mobileSheetExpanded ? 'h-[85vh]' : 'h-[42vh]'
           } ${sidePanelOpen ? '' : 'lg:hidden'}`}
         >
@@ -369,8 +368,8 @@ export function App() {
           >
             <span className="h-1.5 w-12 rounded-full bg-muted-foreground/40" />
           </button>
-          <ScrollArea
-            className="min-h-0 flex-1 bg-background overflow-hidden"
+          <div
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background"
           >
           <div className="flex flex-col">
             {/* Profile summary */}
@@ -492,7 +491,7 @@ export function App() {
               </p>
             </PanelSection>
           </div>
-        </ScrollArea>
+        </div>
         </div>
       </div>
 

@@ -3,8 +3,24 @@ import { useEffect, useRef } from 'react';
 import type { Endpoint, RouteCandidate } from '../types';
 import { bboxOf } from '../lib/geo';
 
-const BASEMAP =
+// Primary: CARTO Voyager (no API key). Fallback: a minimal style with
+// OpenStreetMap raster tiles, which has different CORS behavior in case
+// the CARTO style ever fails to load.
+const BASEMAP_PRIMARY =
   'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
+
+const BASEMAP_FALLBACK: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+    },
+  },
+  layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+};
 
 const RANK_COLORS = ['#22d3ee', '#818cf8', '#f472b6', '#fbbf24'];
 
@@ -36,14 +52,37 @@ export function MapView({
     if (!containerRef.current) return;
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: BASEMAP,
+      style: BASEMAP_PRIMARY,
       center: [10, 45],
       zoom: 4,
       attributionControl: { compact: true },
     });
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    // If the basemap style fails (network/CORS/blocklist), fall back to OSM raster.
+    map.on('error', (e) => {
+      const err = e?.error as Error | undefined;
+      if (err?.message?.includes('style') || err?.message?.includes('Failed to fetch')) {
+        console.warn('[map] primary basemap failed, falling back to OSM:', err.message);
+        try {
+          map.setStyle(BASEMAP_FALLBACK);
+        } catch {
+          /* ignore */
+        }
+      }
+    });
+
+    // Force a resize once the container is in the DOM with real dimensions.
+    // Vite + grid layout sometimes initializes the map at 0×0 if it mounts
+    // before the parent column has resolved its size.
+    const ro = new ResizeObserver(() => map.resize());
+    ro.observe(containerRef.current);
+    // Belt-and-suspenders: resize after the next tick.
+    requestAnimationFrame(() => map.resize());
+
     map.on('load', () => {
       isLoadedRef.current = true;
+      map.resize();
       // Pre-create empty sources/layers for routes
       for (let i = 0; i < 4; i++) {
         const id = `route-${i}`;
@@ -160,6 +199,7 @@ export function MapView({
     });
     mapRef.current = map;
     return () => {
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
     };

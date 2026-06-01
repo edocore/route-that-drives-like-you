@@ -328,7 +328,7 @@ export function App() {
             variant="outline"
             size="icon"
             aria-label={sidePanelOpen ? 'Hide side panel' : 'Show side panel'}
-            className="absolute right-3 top-3 z-10 h-8 w-8 rounded-full border-border bg-card/90 backdrop-blur"
+            className="absolute right-3 top-1/2 z-10 hidden h-8 w-8 -translate-y-1/2 rounded-full border-border bg-card/90 backdrop-blur lg:flex"
             onClick={() => setSidePanelOpen((v) => !v)}
           >
             {sidePanelOpen ? (

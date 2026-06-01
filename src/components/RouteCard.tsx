@@ -1,5 +1,5 @@
 import { Sparkles, FileText } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatDuration } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import type { RouteCandidate } from '@/types';
@@ -49,7 +49,7 @@ export function RouteCard({ route, best, selected, onSelect }: Props) {
         </div>
 
         <div className="grid grid-cols-4 gap-1.5">
-          <Stat label="Time" value={`${Math.round(route.stats.durationMin)} min`} />
+          <Stat label="Time" value={formatDuration(route.stats.durationMin)} />
           <Stat label="Distance" value={`${Math.round(route.stats.distanceKm)} km`} />
           <Stat label="Toll" value={`€${route.stats.tollEur.toFixed(2)}`} />
           <Stat label="Fuel" value={`€${route.stats.fuelEur.toFixed(2)}`} />

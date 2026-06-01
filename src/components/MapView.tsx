@@ -2,6 +2,7 @@ import maplibregl, { type Map as MLMap } from 'maplibre-gl';
 import { useEffect, useRef } from 'react';
 import type { Endpoint, RouteCandidate } from '../types';
 import { bboxOf } from '../lib/geo';
+import { formatDuration } from '../lib/utils';
 
 // Primary: CARTO Voyager (no API key). Fallback: a minimal style with
 // OpenStreetMap raster tiles, which has different CORS behavior in case
@@ -114,6 +115,26 @@ export function MapView({
           },
           layout: { 'line-cap': 'round', 'line-join': 'round' },
         });
+        // ETA label rendered at the line's midpoint, rotating with the road.
+        map.addLayer({
+          id: `${id}-eta`,
+          type: 'symbol',
+          source: id,
+          layout: {
+            'symbol-placement': 'line-center',
+            'text-field': ['get', 'eta'],
+            'text-size': 12,
+            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+            'text-padding': 6,
+            'text-allow-overlap': false,
+            'text-keep-upright': true,
+          },
+          paint: {
+            'text-color': RANK_COLORS[i] ?? '#22d3ee',
+            'text-halo-color': '#0b1020',
+            'text-halo-width': 2.5,
+          },
+        });
         map.on('click', `${id}-stroke`, () => {
           // Will be re-bound by the route-update effect when mapping ID -> route
         });
@@ -223,6 +244,7 @@ export function MapView({
       const isSelected = route.id === selectedId;
       const color = RANK_COLORS[route.rank - 1] ?? '#22d3ee';
       map.setPaintProperty(`route-${i}-stroke`, 'line-color', color);
+      map.setPaintProperty(`route-${i}-eta`, 'text-color', color);
       map.setPaintProperty(
         `route-${i}-stroke`,
         'line-width',
@@ -244,7 +266,10 @@ export function MapView({
           {
             type: 'Feature',
             geometry: route.geometry,
-            properties: { id: route.id },
+            properties: {
+              id: route.id,
+              eta: formatDuration(route.stats.durationMin),
+            },
           },
         ],
       });

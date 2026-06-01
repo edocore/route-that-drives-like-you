@@ -1,4 +1,5 @@
 import type { RouteCandidate } from '../types';
+import { formatDuration } from './utils';
 
 /** Deterministic 2–3 sentence template summary, used as fallback when HF is cold/down. */
 export function templateSummary(
@@ -16,7 +17,7 @@ export function templateSummary(
 
   if (route.id === best.id) {
     parts.push(
-      `Top pick. Fastest of the candidates (${Math.round(route.stats.durationMin)} min over ${Math.round(route.stats.distanceKm)} km).`,
+      `Top pick. Fastest of the candidates (${formatDuration(route.stats.durationMin)} over ${Math.round(route.stats.distanceKm)} km).`,
     );
     if (route.stats.tollEur > 0)
       parts.push(`Costs €${route.stats.tollEur.toFixed(2)} in tolls — the price of saved time.`);

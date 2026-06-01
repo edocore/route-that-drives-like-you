@@ -1,6 +1,7 @@
 import { CULTURE_PRESETS } from '../data/culture';
 import { vehicleSummary } from '../data/vehicles';
 import type { Profile, RouteCandidate } from '../types';
+import { formatDuration } from './utils';
 import { experienceLabel, styleLabel } from './weights';
 
 export function buildSummaryPrompt(args: {
@@ -20,7 +21,7 @@ export function buildSummaryPrompt(args: {
     .filter((c) => c.id !== route.id)
     .map(
       (c) =>
-        `  - ${c.label}: ${Math.round(c.stats.durationMin)} min, €${c.stats.tollEur.toFixed(2)} tolls, ${c.stats.elevationGainM} m climb, ${c.stats.highwaySharePct}% highway`,
+        `  - ${c.label}: ${formatDuration(c.stats.durationMin)}, €${c.stats.tollEur.toFixed(2)} tolls, ${c.stats.elevationGainM} m climb, ${c.stats.highwaySharePct}% highway`,
     )
     .join('\n');
 
@@ -37,7 +38,7 @@ Driver profile:
 
 Route option ${index + 1} of ${total} (${route.label}):
 - Distance: ${route.stats.distanceKm.toFixed(0)} km
-- Estimated time: ${Math.round(route.stats.durationMin)} min (${deltaStr})
+- Estimated time: ${formatDuration(route.stats.durationMin)} (${deltaStr})
 - Toll cost: €${route.stats.tollEur.toFixed(2)}
 - Fuel cost: €${route.stats.fuelEur.toFixed(2)}
 - Elevation gain: ${route.stats.elevationGainM} m

@@ -4,7 +4,7 @@
 
 > Built as a product-thinking portfolio piece. The repo is the artifact; the README below is the spec.
 
-[**→ Live demo**](https://routefit.vercel.app) · [**Demo trip: Rome → Florence**](https://routefit.vercel.app/?demo=rome-florence) · [**Zurich → Milan via Gotthard**](https://routefit.vercel.app/?demo=zurich-milan) · [**LA → Las Vegas**](https://routefit.vercel.app/?demo=la-vegas)
+[**→ Live demo**](https://routefit.vercel.app) · [**Rome → Florence**](https://routefit.vercel.app/?demo=rome-florence) · [**Zurich → Munich**](https://routefit.vercel.app/?demo=zurich-munich) · [**New York City → Boston**](https://routefit.vercel.app/?demo=nyc-boston)
 
 <!-- TODO: embed 30s loom here once deployed -->
 
@@ -14,7 +14,7 @@
 
 Mainstream maps optimize one cost function — time — and apply it to every trip. But the same A → B has multiple correct answers depending on context:
 
-- A **Roman driver in a 1.5L diesel** weighing tolls vs. fuel on Rome → Florence wants a different answer than a **Swiss driver in a small EV** doing Zurich → Milan.
+- A **Roman driver in a 1.5L diesel** weighing tolls vs. fuel on Rome → Florence wants a different answer than a **Swiss driver in a small EV** doing Zurich → Munich.
 - A **new driver at sunset** wants to avoid 30 km of unlit mountain road, even at a 15-minute cost.
 - A **confident driver who hates curves** wants the boring highway, not the scenic one Google quietly suggests.
 

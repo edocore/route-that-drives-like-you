@@ -5,21 +5,32 @@ interface RouteRequestBody {
   destination: { lat: number; lon: number };
 }
 
+// Use the base directions endpoint with Accept: application/geo+json.
+// The legacy /geojson suffix is being deprecated and rejects requests in
+// some account configurations.
 const ORS_URL =
-  'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+  'https://api.openrouteservice.org/v2/directions/driving-car';
 
 /**
- * The public ORS endpoint caps each segment between consecutive coordinates
- * at ~100 km (server-side, regardless of plan). For longer trips we insert
- * via-points along the great-circle so each leg stays under the cap.
+ * The public ORS endpoint caps the *total approximated route distance*
+ * (cumulative sum of great-circle distances between consecutive coordinates
+ * in a single request) at 100 km. Multi-coord requests don't help because the
+ * cap is on the sum, not per-segment.
  *
- * Multi-coordinate requests do NOT return `alternative_routes`. We instead
- * generate 3 *real* alternatives by varying ORS options:
+ * Workaround: for trips > 90 km we split the great-circle into ≤90 km legs
+ * and fire one ORS call per leg. Each call is a 2-coord request, so its
+ * approximated distance is below the cap. Then we stitch the geometries,
+ * sum the stats, and offset the `extras` indices.
+ *
+ * Three real alternatives are produced by varying ORS options:
  *   A: recommended (default)
- *   B: avoid_features ["tollways"] (the no-toll alternative)
+ *   B: avoid_features ["tollways"] (no-toll alternative)
  *   C: preference "shortest" (less highway-heavy)
+ *
+ * Cost: up to 3 variants × N legs ORS calls per trip. At 2000/day quota,
+ * even a 400 km trip (5 legs × 3 variants = 15 calls) gives ~130 trips/day.
  */
-const SEGMENT_CAP_KM = 90; // safety margin under the 100 km server cap
+const LEG_CAP_KM = 90;
 const EARTH_R_KM = 6371;
 
 function haversineKm(
@@ -37,22 +48,21 @@ function haversineKm(
   return 2 * EARTH_R_KM * Math.asin(Math.sqrt(h));
 }
 
-/** Return [origin, via..., destination] coordinate list with no leg > 90 km. */
-function buildCoordinates(
+function buildLegEndpoints(
   origin: { lat: number; lon: number },
   destination: { lat: number; lon: number },
-): number[][] {
+): { lat: number; lon: number }[] {
   const total = haversineKm(origin, destination);
-  const segments = Math.max(1, Math.ceil(total / SEGMENT_CAP_KM));
-  const coords: number[][] = [];
+  const segments = Math.max(1, Math.ceil(total / LEG_CAP_KM));
+  const points: { lat: number; lon: number }[] = [];
   for (let i = 0; i <= segments; i++) {
     const t = i / segments;
-    coords.push([
-      origin.lon + (destination.lon - origin.lon) * t,
-      origin.lat + (destination.lat - origin.lat) * t,
-    ]);
+    points.push({
+      lon: origin.lon + (destination.lon - origin.lon) * t,
+      lat: origin.lat + (destination.lat - origin.lat) * t,
+    });
   }
-  return coords;
+  return points;
 }
 
 interface VariantOptions {
@@ -71,15 +81,19 @@ interface ORSGeometry {
   coordinates: number[][];
 }
 
+interface ORSExtraValues {
+  values: number[][];
+}
+
 interface ORSFeature {
+  type: 'Feature';
   geometry: ORSGeometry;
   properties: {
     summary: { distance: number; duration: number };
     ascent?: number;
     descent?: number;
-    extras?: Record<string, { values: number[][] }>;
+    extras?: Record<string, ORSExtraValues>;
   };
-  type: 'Feature';
 }
 
 interface ORSFeatureCollection {
@@ -88,13 +102,13 @@ interface ORSFeatureCollection {
   bbox?: [number, number, number, number];
 }
 
-async function callORS(
+async function callORSLeg(
   token: string,
-  coords: number[][],
+  legCoords: number[][],
   opts: VariantOptions,
 ): Promise<{ ok: true; feature: ORSFeature } | { ok: false; status: number; detail: string }> {
   const body: Record<string, unknown> = {
-    coordinates: coords,
+    coordinates: legCoords,
     elevation: true,
     extra_info: ['surface', 'tollways', 'roadaccessrestrictions', 'waytype'],
     instructions: false,
@@ -125,14 +139,91 @@ async function callORS(
   return { ok: true, feature };
 }
 
-/** Deduplicate features that came back identical (same distance to within 1 km AND same duration to within 30 s). */
+/** Stitch two ORS features into one. The first coord of `b` should equal the last coord of `a`; we drop it. */
+function stitchFeatures(a: ORSFeature, b: ORSFeature): ORSFeature {
+  const aCoords = a.geometry.coordinates;
+  const bCoords = b.geometry.coordinates;
+  // Drop the first coord of b to avoid duplicating the join point
+  const merged = aCoords.concat(bCoords.slice(1));
+
+  // Index offset for b's extras: b's index 0 maps to aCoords.length - 1 in merged
+  const offset = aCoords.length - 1;
+
+  const mergedExtras: Record<string, ORSExtraValues> = {
+    ...(a.properties.extras ?? {}),
+  };
+  if (b.properties.extras) {
+    for (const [key, ext] of Object.entries(b.properties.extras)) {
+      const shifted = ext.values.map(([from, to, value]) => [
+        from + offset,
+        to + offset,
+        value,
+      ]);
+      const existing = mergedExtras[key]?.values ?? [];
+      mergedExtras[key] = { values: [...existing, ...shifted] };
+    }
+  }
+
+  return {
+    type: 'Feature',
+    geometry: { type: 'LineString', coordinates: merged },
+    properties: {
+      summary: {
+        distance:
+          a.properties.summary.distance + b.properties.summary.distance,
+        duration:
+          a.properties.summary.duration + b.properties.summary.duration,
+      },
+      ascent: (a.properties.ascent ?? 0) + (b.properties.ascent ?? 0),
+      descent: (a.properties.descent ?? 0) + (b.properties.descent ?? 0),
+      extras: mergedExtras,
+    },
+  };
+}
+
+/** Build a stitched route for one variant by routing each leg sequentially. */
+async function buildVariant(
+  token: string,
+  legEndpoints: { lat: number; lon: number }[],
+  opts: VariantOptions,
+): Promise<{ ok: true; feature: ORSFeature } | { ok: false; status: number; detail: string }> {
+  let accumulated: ORSFeature | null = null;
+  // Use the actual road-snapped end of the previous leg as the start of the next,
+  // so the stitched geometry connects without a phantom jump.
+  let cursor = legEndpoints[0];
+  for (let i = 1; i < legEndpoints.length; i++) {
+    const target = legEndpoints[i];
+    const result = await callORSLeg(
+      token,
+      [
+        [cursor.lon, cursor.lat],
+        [target.lon, target.lat],
+      ],
+      opts,
+    );
+    if (!result.ok) return result;
+    accumulated = accumulated
+      ? stitchFeatures(accumulated, result.feature)
+      : result.feature;
+    const lastCoord =
+      result.feature.geometry.coordinates[
+        result.feature.geometry.coordinates.length - 1
+      ];
+    cursor = { lon: lastCoord[0], lat: lastCoord[1] };
+  }
+  if (!accumulated) {
+    return { ok: false, status: 500, detail: 'no legs produced' };
+  }
+  return { ok: true, feature: accumulated };
+}
+
 function dedupe(features: ORSFeature[]): ORSFeature[] {
   const out: ORSFeature[] = [];
   for (const f of features) {
     const dup = out.find(
       (g) =>
-        Math.abs(g.properties.summary.distance - f.properties.summary.distance) < 1000 &&
-        Math.abs(g.properties.summary.duration - f.properties.summary.duration) < 30,
+        Math.abs(g.properties.summary.distance - f.properties.summary.distance) < 1500 &&
+        Math.abs(g.properties.summary.duration - f.properties.summary.duration) < 60,
     );
     if (!dup) out.push(f);
   }
@@ -159,11 +250,11 @@ export default async function handler(
     return;
   }
 
-  const coords = buildCoordinates(body.origin, body.destination);
+  const legEndpoints = buildLegEndpoints(body.origin, body.destination);
 
   try {
     const results = await Promise.all(
-      VARIANTS.map((v) => callORS(token, coords, v)),
+      VARIANTS.map((v) => buildVariant(token, legEndpoints, v)),
     );
 
     const successes = results

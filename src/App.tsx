@@ -307,7 +307,7 @@ export function App() {
       {/* Main */}
       <div className="grid flex-1 min-h-0 grid-cols-1 lg:grid-cols-[1fr_440px]">
         {/* Map */}
-        <div className="relative min-h-0">
+        <div className="relative min-h-0 h-[60vh] lg:h-auto">
           <MapView
             routes={ranked}
             selectedId={selectedRoute?.id ?? null}

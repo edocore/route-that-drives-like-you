@@ -30,7 +30,7 @@ export default async function handler(
 
   const url = `https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12_000);
+  const timeout = setTimeout(() => controller.abort(), 8_000);
 
   try {
     const r = await fetch(url, {

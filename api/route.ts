@@ -5,11 +5,11 @@ interface RouteRequestBody {
   destination: { lat: number; lon: number };
 }
 
-// Use the base directions endpoint with Accept: application/geo+json.
-// The legacy /geojson suffix is being deprecated and rejects requests in
-// some account configurations.
+// /geojson is the only ORS endpoint that returns a FeatureCollection.
+// The base /driving-car endpoint returns { routes: [...] } in JSON format
+// regardless of the Accept header.
 const ORS_URL =
-  'https://api.openrouteservice.org/v2/directions/driving-car';
+  'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
 
 /**
  * The public ORS endpoint caps the *total approximated route distance*
@@ -131,10 +131,24 @@ async function callORSLeg(
   if (!r.ok) {
     return { ok: false, status: r.status, detail: await r.text() };
   }
-  const data = (await r.json()) as ORSFeatureCollection;
+  const raw = await r.text();
+  let data: ORSFeatureCollection;
+  try {
+    data = JSON.parse(raw) as ORSFeatureCollection;
+  } catch {
+    return {
+      ok: false,
+      status: 502,
+      detail: `ORS returned non-JSON: ${raw.slice(0, 200)}`,
+    };
+  }
   const feature = data.features?.[0];
   if (!feature) {
-    return { ok: false, status: 502, detail: 'ORS returned no features' };
+    return {
+      ok: false,
+      status: 502,
+      detail: `ORS returned no features. Body: ${raw.slice(0, 300)}`,
+    };
   }
   return { ok: true, feature };
 }
